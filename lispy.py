@@ -82,6 +82,7 @@ def atom(token):
     'Numbers become numbers; #t and #f are booleans; "..." string; otherwise Symbol.'
     if token == '#t': return True
     elif token == '#f': return False
+    elif token == 'nil': return None
     elif token[0] == '"': return token[1:-1].decode('string_escape')
     try: return int(token)
     except ValueError:
@@ -95,6 +96,7 @@ def to_string(x):
     "Convert a Python object back into a Lisp-readable string."
     if x is True: return "#t"
     elif x is False: return "#f"
+    elif x is None: return "nil"
     elif isa(x, Symbol): return x
     elif isa(x, str): return '"%s"' % x.encode('string_escape').replace('"',r'\"')
     elif isa(x, list): return '('+' '.join(map(to_string, x))+')'
@@ -160,9 +162,10 @@ def add_globals(self):
      '+':op.add, '-':op.sub, '*':op.mul, '/':op.div, 'not':op.not_, 
      '>':op.gt, '<':op.lt, '>=':op.ge, '<=':op.le, '=':op.eq, 
      'equal?':op.eq, 'eq?':op.is_, 'length':len, 'cons':cons,
-     'car':lambda x:x[0], 'cdr':lambda x:x[1:], 'append':op.add,  
+     'car':lambda x:x[0], 'cdr':lambda x:x[1:], 'append':op.add,
+     'first':lambda x:x[0], 'second': lambda x:x[1], 'third': lambda x:x[2],
      'list':lambda *x:list(x), 'list?': lambda x:isa(x,list),
-     'null?':lambda x:x==[], 'symbol?':lambda x: isa(x, Symbol),
+     'null?': lambda x: x is None,'empty?':lambda x:x==[], 'symbol?':lambda x: isa(x, Symbol),
      'boolean?':lambda x: isa(x, bool), 'pair?':is_pair, 
      'port?': lambda x:isa(x,file), 'apply':lambda proc,l: proc(*l), 
      'eval':lambda x: eval(expand(x)), 'load':lambda fn: load(fn), 'call/cc':callcc,
@@ -305,14 +308,25 @@ macro_table = {_let:let} ## More macros can go here
 eval(parse("""(begin
 
 (define-macro and (lambda args 
-   (if (null? args) #t
+   (if (empty? args) nil
        (if (= (length args) 1) (car args)
-           `(if ,(car args) (and ,@(cdr args)) #f)))))
+           `(if ,(car args) (and ,@(cdr args)) #f)))))         
 
+(define-macro cond (lambda args
+    (if (empty? args) nil
+        (let ((test (car args)))
+            (if (= (length test) 1) (car test)
+                `(if ,(car test) ,@(cdr test)
+                    (cond ,@(cdr args))))))))
+
+(define-macro when (lambda args
+    `(if ,(car args) ,@(cdr args))))
+
+(define-macro unless (lambda args
+    `(if (not ,(car args)) ,@(cdr args))))    
+    
 ;; More macros can also go here
-
 )"""))
 
 if __name__ == '__main__':
     repl()
-
